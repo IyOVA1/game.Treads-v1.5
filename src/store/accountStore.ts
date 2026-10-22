@@ -26,6 +26,8 @@ interface AccountState {
   error: string;
   loading: boolean;
   lastSaveError: string;
+  entryLoading: boolean;
+  clearEntryLoading: () => void;
   setError: (msg: string) => void;
   init: () => Promise<void>;
   continueAsGuest: () => void;
@@ -145,6 +147,9 @@ export const useAccountStore = create<AccountState>((set, get) => ({
   error: "",
   loading: false,
   lastSaveError: "",
+  entryLoading: false,
+
+  clearEntryLoading: () => set({ entryLoading: false }),
 
   setError: (error) => set({ error }),
 
@@ -189,6 +194,7 @@ export const useAccountStore = create<AccountState>((set, get) => ({
       isGuest: true,
       authPhase: "play",
       error: "",
+      entryLoading: true,
     });
   },
 
@@ -228,6 +234,7 @@ export const useAccountStore = create<AccountState>((set, get) => ({
       isGuest: false,
       authPhase: "play",
       error: "",
+      entryLoading: true,
     });
     // Seed progress row immediately
     const seed = defaultProgress();
@@ -264,6 +271,7 @@ export const useAccountStore = create<AccountState>((set, get) => ({
       isGuest: false,
       authPhase: "play",
       error: "",
+      entryLoading: true,
     });
     return true;
   },

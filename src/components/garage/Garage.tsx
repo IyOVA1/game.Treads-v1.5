@@ -110,10 +110,16 @@ export function Garage() {
               <Environment preset="warehouse" />
             </Suspense>
             <OrbitControls
-              target={[0, 0.8, 0]}
-              maxPolarAngle={Math.PI / 2.1}
-              minDistance={4}
-              maxDistance={14}
+              target={[0, 0.9, 0]}
+              enablePan={false}
+              enableZoom={false}
+              minDistance={7}
+              maxDistance={7}
+              minPolarAngle={Math.PI / 3.2}
+              maxPolarAngle={Math.PI / 2.6}
+              autoRotate
+              autoRotateSpeed={0.6}
+              rotateSpeed={0.55}
             />
             <gridHelper args={[20, 20, "#334155", "#1e293b"]} position={[0, -0.01, 0]} />
           </Canvas>

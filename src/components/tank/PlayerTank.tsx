@@ -253,29 +253,24 @@ export function PlayerTank() {
       ammo.current -= 1;
       muzzleRef.current!.getWorldPosition(tmp.v1);
 
-      // Screen-center ray (true TPS reticle)
+      // Screen-center ray = exact crosshair direction (elevation included)
       tmp.v2.set(0, 0, 0.5).unproject(cam);
       tmp.v2.sub(cam.position).normalize();
       const rayDir = tmp.v2.clone();
-      aimPointOnTerrain(cam.position, rayDir, tmp.aim, 220);
-
-      const toAim = tmp.aim.clone().sub(tmp.v1);
-      const distAim = toAim.length();
       const isMortar = weapon.weaponType === "mortar";
       const spd = Math.max(25, weapon.projectileSpeed);
 
       if (isMortar) {
-        const t = Math.max(0.5, distAim / spd);
-        toAim.y += 0.5 * 9.8 * t * t;
+        // Mortar: impact mean point is ground under reticle
+        aimPointOnTerrain(cam.position, rayDir, tmp.aim, 220);
+        const toAim = tmp.aim.clone().sub(tmp.v1);
+        const distAim = Math.max(8, toAim.length());
+        const flight = Math.max(0.55, distAim / spd);
+        toAim.y += 0.5 * 9.8 * flight * flight;
         tmp.v2.copy(toAim.normalize().multiplyScalar(spd));
       } else {
-        // Direct-fire: prefer reticle direction so shells don't dive into nearby ground
-        // Only bend toward terrain hit if it's far enough ahead
-        if (distAim > 25) {
-          tmp.v2.copy(toAim.normalize().multiplyScalar(spd));
-        } else {
-          tmp.v2.copy(rayDir).multiplyScalar(spd);
-        }
+        // Direct fire: pure crosshair ray — no terrain pull, no dip
+        tmp.v2.copy(rayDir).multiplyScalar(spd);
       }
 
       spawnProjectile({
@@ -310,78 +305,122 @@ export function PlayerTank() {
     }
   });
 
-  const barrelZ = -l * 0.32;
+  const barrelZ = -l * 0.38;
+  const trackY = -h / 2 + 0.2;
 
   return (
     <group ref={groupRef}>
+      {/* Lower chassis / sponson depth */}
+      <mesh position={[0, -h * 0.12, 0]} castShadow receiveShadow>
+        <boxGeometry args={[w * 1.05, h * 0.55, l * 0.98]} />
+        <meshStandardMaterial color="#4f5a48" metalness={0.15} roughness={0.88} />
+      </mesh>
       {/* Main armored hull */}
-      <mesh castShadow receiveShadow>
-        <boxGeometry args={[w, h, l]} />
+      <mesh position={[0, h * 0.08, 0]} castShadow receiveShadow>
+        <boxGeometry args={[w * 0.92, h * 0.7, l * 0.88]} />
         <meshStandardMaterial color="#66745a" metalness={0.18} roughness={0.82} />
       </mesh>
       {/* Raised front glacis */}
-      <mesh position={[0, h * 0.24, l * 0.29]} rotation={[-0.16, 0, 0]} castShadow>
-        <boxGeometry args={[w * 0.86, h * 0.28, l * 0.28]} />
+      <mesh position={[0, h * 0.22, l * 0.28]} rotation={[-0.18, 0, 0]} castShadow>
+        <boxGeometry args={[w * 0.8, h * 0.32, l * 0.3]} />
         <meshStandardMaterial color="#788467" metalness={0.12} roughness={0.88} />
       </mesh>
-      {/* Side tracks — scrolling dirt stripes + road wheels */}
+      {/* Rear deck step */}
+      <mesh position={[0, h * 0.15, -l * 0.32]} castShadow>
+        <boxGeometry args={[w * 0.75, h * 0.2, l * 0.22]} />
+        <meshStandardMaterial color="#5a6652" metalness={0.14} roughness={0.86} />
+      </mesh>
+
+      {/* Tracks with real depth: outer pad + inner well + wheels */}
       {([-1, 1] as const).map((side, si) => (
-        <group key={side} position={[side * (w / 2 + 0.12), -h / 2 + 0.18, 0]}>
+        <group key={side} position={[side * (w / 2 + 0.16), trackY, 0]}>
+          {/* Outer track band */}
           <mesh castShadow receiveShadow>
-            <boxGeometry args={[0.34, 0.48, l * 0.96]} />
+            <boxGeometry args={[0.42, 0.52, l * 0.98]} />
             <meshStandardMaterial
               ref={si === 0 ? trackMatL : trackMatR}
               map={trackTex.current!}
-              color="#c8c8c8"
-              metalness={0.15}
-              roughness={0.92}
+              color="#b0b0b0"
+              metalness={0.12}
+              roughness={0.94}
             />
           </mesh>
+          {/* Inner dark well for depth */}
+          <mesh position={[side * -0.12, 0.02, 0]}>
+            <boxGeometry args={[0.2, 0.38, l * 0.9]} />
+            <meshStandardMaterial color="#1a1c18" metalness={0.05} roughness={0.95} />
+          </mesh>
+          {/* Top return run */}
+          <mesh position={[0, 0.28, 0]} castShadow>
+            <boxGeometry args={[0.36, 0.08, l * 0.92]} />
+            <meshStandardMaterial color="#3a3c36" metalness={0.2} roughness={0.9} />
+          </mesh>
+          {/* Road wheels */}
           {Array.from({ length: 5 }, (_, i) => (
             <mesh
               key={i}
               ref={(el) => {
                 wheelRefs.current[si * 5 + i] = el;
               }}
-              position={[side * 0.176, -0.02, -l * 0.36 + i * l * 0.18]}
+              position={[side * 0.08, -0.08, -l * 0.36 + i * l * 0.18]}
               rotation={[0, 0, Math.PI / 2]}
               castShadow
             >
-              <cylinderGeometry args={[0.115, 0.115, 0.045, 10]} />
-              <meshStandardMaterial color="#4a4c45" metalness={0.35} roughness={0.75} />
+              <cylinderGeometry args={[0.14, 0.14, 0.16, 10]} />
+              <meshStandardMaterial color="#3a3c36" metalness={0.35} roughness={0.75} />
+            </mesh>
+          ))}
+          {/* Front/rear idlers */}
+          {([-l * 0.46, l * 0.46] as const).map((z, j) => (
+            <mesh
+              key={`id-${j}`}
+              position={[side * 0.08, 0.02, z]}
+              rotation={[0, 0, Math.PI / 2]}
+              castShadow
+            >
+              <cylinderGeometry args={[0.12, 0.12, 0.14, 10]} />
+              <meshStandardMaterial color="#2a2c28" metalness={0.4} roughness={0.7} />
             </mesh>
           ))}
         </group>
       ))}
-      {/* Turret assembly */}
-      <group ref={turretRef} position={[0, h / 2 + 0.15, -0.15]}>
+
+      {/* Turret — box body so barrel never clips a flat cylinder face */}
+      <group ref={turretRef} position={[0, h / 2 + 0.22, -0.08]}>
         <mesh castShadow receiveShadow>
-          <cylinderGeometry args={[0.65, 0.8, 0.45, 8]} />
-          <meshStandardMaterial color="#778368" metalness={0.2} roughness={0.78} />
+          <boxGeometry args={[1.35, 0.55, 1.45]} />
+          <meshStandardMaterial color="#6e7a62" metalness={0.2} roughness={0.78} />
         </mesh>
-        <mesh position={[0, 0.1, 0.2]} castShadow>
-          <boxGeometry args={[w * 0.58, 0.24, l * 0.28]} />
-          <meshStandardMaterial color="#5d6c53" metalness={0.16} roughness={0.84} />
+        {/* Rounded-ish top plate */}
+        <mesh position={[0, 0.28, 0]} castShadow>
+          <boxGeometry args={[1.15, 0.12, 1.2]} />
+          <meshStandardMaterial color="#7a866c" metalness={0.18} roughness={0.8} />
         </mesh>
-        {/* Barrel collar */}
-        <mesh position={[0, 0.08, barrelZ * 0.32]} rotation={[Math.PI / 2, 0, 0]} castShadow>
-          <cylinderGeometry args={[0.17, 0.18, 0.22, 10]} />
-          <meshStandardMaterial color="#3d463b" metalness={0.42} roughness={0.65} />
+        {/* Mantlet / gun shield in front of barrel root */}
+        <mesh position={[0, 0.06, -0.55]} castShadow>
+          <boxGeometry args={[0.55, 0.4, 0.28]} />
+          <meshStandardMaterial color="#4a5344" metalness={0.25} roughness={0.7} />
         </mesh>
-        <mesh ref={barrelRef} position={[0, 0.08, barrelZ]} rotation={[Math.PI / 2, 0, 0]} castShadow>
-          <cylinderGeometry args={[0.1, 0.14, l * 0.5, 10]} />
-          <meshStandardMaterial color="#343d35" metalness={0.42} roughness={0.62} />
+        {/* Barrel sits in front of mantlet — no penetration through turret block */}
+        <mesh
+          ref={barrelRef}
+          position={[0, 0.06, barrelZ]}
+          rotation={[Math.PI / 2, 0, 0]}
+          castShadow
+        >
+          <cylinderGeometry args={[0.09, 0.12, l * 0.55, 10]} />
+          <meshStandardMaterial color="#2e342e" metalness={0.45} roughness={0.55} />
         </mesh>
-        <mesh position={[0, 0.08, barrelZ * 1.83]} rotation={[Math.PI / 2, 0, 0]} castShadow>
-          <cylinderGeometry args={[0.16, 0.16, 0.2, 10]} />
-          <meshStandardMaterial color="#242c27" metalness={0.45} roughness={0.6} />
+        <mesh position={[0, 0.06, barrelZ - l * 0.22]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+          <cylinderGeometry args={[0.14, 0.14, 0.18, 10]} />
+          <meshStandardMaterial color="#1e221e" metalness={0.5} roughness={0.5} />
         </mesh>
-        {/* Small hatch and armor details */}
-        <mesh position={[w * 0.2, 0.28, -0.12]} castShadow>
-          <cylinderGeometry args={[0.16, 0.18, 0.09, 8]} />
-          <meshStandardMaterial color="#89927b" metalness={0.18} roughness={0.82} />
+        {/* Hatch */}
+        <mesh position={[0.35, 0.38, 0.15]} castShadow>
+          <cylinderGeometry args={[0.18, 0.2, 0.1, 8]} />
+          <meshStandardMaterial color="#8a947c" metalness={0.15} roughness={0.85} />
         </mesh>
-        <object3D ref={muzzleRef} position={[0, 0.08, -l * 0.6]} />
+        <object3D ref={muzzleRef} position={[0, 0.06, -l * 0.65]} />
       </group>
     </group>
   );
